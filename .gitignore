@@ -1,0 +1,12 @@
+# 本地真实配置(含内部项目 ID / API key)—— 用 agyproxy.env.example 起步
+agyproxy.env
+
+# 运行时产物:请求样本与日志包含真实会话内容,严禁入库
+dumps/
+flows.log
+mitmdump.out
+mock.out
+*.pid
+.mitm.pid
+.mock.pid
+__pycache__/

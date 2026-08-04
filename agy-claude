@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# 用翻译代理启动 Antigravity CLI —— 推理由配置的后端(默认 Claude on Vertex)提供
+set -euo pipefail
+source "$(cd "$(dirname "$0")" && pwd)/agyproxy.env"
+
+if ! curl -s -m 2 -x "http://127.0.0.1:$PROXY_PORT" --cacert "$MITM_CA" \
+     https://www.google.com -o /dev/null; then
+    echo "代理未运行,请先执行 ./start.sh" >&2
+    exit 1
+fi
+
+exec env \
+    HTTPS_PROXY="http://127.0.0.1:$PROXY_PORT" \
+    HTTP_PROXY="http://127.0.0.1:$PROXY_PORT" \
+    SSL_CERT_FILE="$MITM_CA" \
+    "$HOME/.local/bin/agy" "$@"
