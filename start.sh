@@ -12,10 +12,14 @@ if [ "$AGY_BACKEND" = "openai" ] && [[ "$OPENAI_BASE_URL" == *"127.0.0.1:19090"*
     echo "mock 后端已启动 (pid $(cat .mock.pid), :19090)"
 fi
 
+# env -u: 防止 shell 里残留的 SSL_CERT_FILE(常见于手动跑过 agy 的终端)
+# 泄漏进 mitmdump —— 那会让后端出连接只信任 mitm CA,必然 CERTIFICATE_VERIFY_FAILED
 AGY_TRANSLATE=1 AGY_BACKEND="$AGY_BACKEND" \
 CLAUDE_PROJECT="$CLAUDE_PROJECT" CLAUDE_REGION="$CLAUDE_REGION" CLAUDE_MODEL="$CLAUDE_MODEL" \
 OPENAI_BASE_URL="$OPENAI_BASE_URL" OPENAI_API_KEY="$OPENAI_API_KEY" NEW_MODEL_ID="$NEW_MODEL_ID" \
-nohup "$MITM_VENV/bin/mitmdump" --listen-port "$PROXY_PORT" -s translate.py \
+AGY_BACKEND_CA_BUNDLE="${AGY_BACKEND_CA_BUNDLE:-}" \
+nohup env -u SSL_CERT_FILE -u REQUESTS_CA_BUNDLE -u CURL_CA_BUNDLE \
+    "$MITM_VENV/bin/mitmdump" --listen-port "$PROXY_PORT" -s translate.py \
     --set stream_large_bodies=5m > mitmdump.out 2>&1 &
 echo $! > .mitm.pid
 

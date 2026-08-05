@@ -150,6 +150,36 @@ cd agy-proxy
 - agy 后台自更新可能改变协议或加证书锁定,更新后需回归测试;
 - 图片/多模态 parts 未翻译(遇到即 fail-open 透传)。
 
+## 7.5 排障:后端出连接 `CERTIFICATE_VERIFY_FAILED`
+
+日志特征:`[inference] translate failed (URLError: SSL: CERTIFICATE_VERIFY_FAILED
+... unable to get local issuer certificate); passthrough`
+——挂的是**代理自己调用后端**(Vertex/OpenAI)的 TLS,不是 agy 的流量;
+fail-open 会把该轮退回真实 Gemini,功能不中断但换模型失效。
+
+三个成因与鉴别(按常见度排序):
+
+1. **`SSL_CERT_FILE` 泄漏进 mitmdump**:在 export 过
+   `SSL_CERT_FILE=<mitm CA>` 的 shell 里跑了 `./start.sh`,Python 信任库
+   只剩 mitm CA。→ 已在 start.sh 用 `env -u` 根治,升级即可;
+2. **macOS Python 无 CA**:venv 里的 urllib 不读系统钥匙串。→ 已改为默认
+   使用 certifi bundle,升级即可;
+3. **公司网络 TLS 检查**(中间盒重签证书):设
+   `AGY_BACKEND_CA_BUNDLE=/path/to/corp-ca.pem` 后重启。
+
+一条命令鉴别(用代理同款 Python 直连后端域名):
+
+```bash
+~/.venvs/mitm/bin/python -c "import urllib.request;
+urllib.request.urlopen('https://aiplatform.googleapis.com'); print('TLS OK')" \
+  2>&1 | tail -1
+# TLS OK / 404 类错误 → 信任链正常,问题在环境变量泄漏(成因 1)
+# 仍 CERTIFICATE_VERIFY_FAILED → 看证书签发者:
+#   openssl s_client -connect aiplatform.googleapis.com:443 </dev/null 2>/dev/null \
+#     | openssl x509 -noout -issuer
+#   签发者是 Google Trust Services → 成因 2;是公司 CA → 成因 3
+```
+
 ## 8. 接入新模型指南
 
 按新模型的 API 协议分三种情况:

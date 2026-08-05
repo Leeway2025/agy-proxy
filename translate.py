@@ -17,6 +17,7 @@ Backends (env AGY_BACKEND):
 import gzip
 import json
 import os
+import ssl
 import subprocess
 import time
 import urllib.request
@@ -148,6 +149,27 @@ def to_anthropic(ca_body: dict) -> dict:
     return out
 
 
+def backend_ssl_context() -> ssl.SSLContext:
+    """Trust store for the addon's OWN outbound calls (Vertex/OpenAI backend).
+
+    Deliberately independent from any SSL_CERT_FILE in the environment (that
+    variable is for the agy process and points at the mitm CA). Default to
+    certifi (ships with mitmproxy); AGY_BACKEND_CA_BUNDLE overrides for
+    corp networks with TLS inspection (point it at the corp CA bundle).
+    """
+    cafile = os.environ.get("AGY_BACKEND_CA_BUNDLE") or None
+    if not cafile:
+        try:
+            import certifi
+            cafile = certifi.where()
+        except ImportError:
+            pass
+    return ssl.create_default_context(cafile=cafile)
+
+
+_SSL_CTX = backend_ssl_context()
+
+
 def gcloud_token(_cache={}) -> str:
     if _cache.get("exp", 0) > time.time():
         return _cache["tok"]
@@ -168,7 +190,7 @@ def call_claude_vertex(a_req: dict) -> dict:
         headers={"Content-Type": "application/json",
                  "Authorization": f"Bearer {gcloud_token()}"},
     )
-    with urllib.request.urlopen(req, timeout=300) as r:
+    with urllib.request.urlopen(req, timeout=300, context=_SSL_CTX) as r:
         return json.loads(r.read())
 
 
@@ -261,7 +283,7 @@ def call_openai(oa_req: dict) -> dict:
         headers={"Content-Type": "application/json",
                  "Authorization": f"Bearer {OPENAI_KEY}"},
     )
-    with urllib.request.urlopen(req, timeout=120) as r:
+    with urllib.request.urlopen(req, timeout=120, context=_SSL_CTX) as r:
         return json.loads(r.read())
 
 
