@@ -77,6 +77,12 @@ cd agy-proxy
 ./stop.sh        # 停止代理与 mock
 ```
 
+**平台支持**:Linux 完整验证;macOS 兼容(certifi 信任链、无 GNU timeout/apt 依赖
+均已处理;tmux 可选)。已知一台 macOS 机器实测拦截链路正常。若 mac 上 agy 侧报
+TLS 错误(Go 在 darwin 理论上偏向系统钥匙串校验),兜底方案:
+`security add-trusted-cert -k ~/Library/Keychains/login.keychain-db ~/.mitmproxy/mitmproxy-ca-cert.pem`
+(登录钥匙串,非系统级;不再使用时用 security delete-certificate 移除)。
+
 前置条件(anthropic-vertex 后端):
 
 - `gcloud` ADC 可用(`gcloud auth application-default print-access-token` 成功),

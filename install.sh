@@ -17,8 +17,14 @@ die()  { echo "  ❌ $*" >&2; exit 1; }
 
 echo "== [1/5] 系统依赖 =="
 command -v python3 >/dev/null || die "缺少 python3"
-command -v tmux >/dev/null || { sudo apt-get install -y tmux >/dev/null 2>&1 || die "缺少 tmux 且自动安装失败"; }
-ok "python3 / tmux"
+# tmux 仅脚本化演示需要,日常使用(agy-claude 在自己终端跑)不依赖
+if ! command -v tmux >/dev/null; then
+    case "$(uname -s)" in
+        Linux)  sudo apt-get install -y tmux >/dev/null 2>&1 || warn "tmux 未装(仅脚本化演示需要)" ;;
+        Darwin) command -v brew >/dev/null && brew install -q tmux || warn "tmux 未装(仅脚本化演示需要)" ;;
+    esac
+fi
+ok "python3$(command -v tmux >/dev/null && echo ' / tmux')"
 
 echo "== [2/5] mitmproxy(独立 venv)=="
 if [ ! -x "$MITM_VENV/bin/mitmdump" ]; then
@@ -29,8 +35,9 @@ ok "$("$MITM_VENV/bin/mitmdump" --version | head -1)"
 
 echo "== [3/5] mitmproxy CA 证书 =="
 if [ ! -f "$MITM_CA" ]; then
-    # 首次运行 mitmdump 会生成 CA;起一个瞬时实例
-    timeout 5 "$MITM_VENV/bin/mitmdump" --listen-port 0 >/dev/null 2>&1 || true
+    # 首次运行 mitmdump 会生成 CA;起一个瞬时实例(不用 timeout 命令,mac 没有)
+    "$MITM_VENV/bin/mitmdump" --listen-port 0 >/dev/null 2>&1 &
+    _pid=$!; sleep 4; kill "$_pid" 2>/dev/null || true; wait "$_pid" 2>/dev/null || true
 fi
 [ -f "$MITM_CA" ] || die "CA 生成失败"
 ok "$MITM_CA"
